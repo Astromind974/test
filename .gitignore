@@ -3,6 +3,9 @@
 Thumbs.db
 desktop.ini
 
+# Base de données SQLite (générée à l'exécution)
+*.db
+
 # Variables d'environnement
 .env
 .env.local

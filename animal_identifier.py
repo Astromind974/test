@@ -4,16 +4,21 @@ animal_identifier.py
 Programme d'identification d'animaux sur une image.
 
 Utilise MobileNetV2 pré-entraîné sur ImageNet (1 000 classes dont de nombreux animaux).
+Les résultats sont sauvegardés dans une base de données SQLite (results.db)
+avec la position géographique optionnelle.
 
 Utilisation :
     python animal_identifier.py --image chemin/vers/image.jpg
     python animal_identifier.py --url https://...
+    python animal_identifier.py --image photo.jpg --lat 48.8566 --lon 2.3522
 """
 
 import argparse
 import io
 import sys
 from pathlib import Path
+
+from database import save_result
 
 import numpy as np
 import requests
@@ -109,8 +114,13 @@ def is_animal(label: str) -> bool:
 MEDALS = ["🥇", "🥈", "🥉", "    ", "    "]
 
 
-def identify_animal(image_source: str, is_url: bool = False) -> None:
-    """Pipeline complet : chargement du modèle, de l'image, inférence, affichage."""
+def identify_animal(
+    image_source: str,
+    is_url: bool = False,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> None:
+    """Pipeline complet : chargement du modèle, de l'image, inférence, affichage et sauvegarde."""
 
     # 1. Modèle
     model, preprocess_input, decode_predictions = load_model()
@@ -142,7 +152,8 @@ def identify_animal(image_source: str, is_url: bool = False) -> None:
     # 6. Meilleure prédiction
     best_class_id, best_label, best_score = top5[0]
     print()
-    if is_animal(best_label):
+    animal_detected = is_animal(best_label)
+    if animal_detected:
         print(
             f"✅  Animal identifié : {best_label.upper().replace('_', ' ')} "
             f"avec {best_score * 100:.2f} % de confiance."
@@ -165,6 +176,18 @@ def identify_animal(image_source: str, is_url: bool = False) -> None:
                 f"Meilleur résultat : {best_label} ({best_score * 100:.2f} %)."
             )
 
+    # 7. Sauvegarde dans la base de données
+    has_location = latitude is not None and longitude is not None
+    row_id = save_result(
+        source=image_source,
+        top5=top5,
+        is_animal_detected=animal_detected,
+        latitude=latitude if has_location else None,
+        longitude=longitude if has_location else None,
+    )
+    loc_info = f" | position : lat={latitude}, lon={longitude}" if has_location else ""
+    print(f"\n💾  Résultat sauvegardé en base de données (id={row_id}{loc_info}).")
+
 
 # ---------------------------------------------------------------------------
 # Point d'entrée
@@ -178,18 +201,27 @@ def main() -> None:
             "Exemples :\n"
             "  python animal_identifier.py --image photo.jpg\n"
             "  python animal_identifier.py --url https://example.com/cat.jpg\n"
+            "  python animal_identifier.py --image photo.jpg --lat 48.8566 --lon 2.3522\n"
         ),
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--image", metavar="CHEMIN", help="Chemin vers l'image locale")
     group.add_argument("--url", metavar="URL", help="URL de l'image à analyser")
+    parser.add_argument(
+        "--lat", metavar="LATITUDE", type=float, default=None,
+        help="Latitude GPS du lieu de prise de vue (optionnel)"
+    )
+    parser.add_argument(
+        "--lon", metavar="LONGITUDE", type=float, default=None,
+        help="Longitude GPS du lieu de prise de vue (optionnel)"
+    )
 
     args = parser.parse_args()
 
     if args.url:
-        identify_animal(args.url, is_url=True)
+        identify_animal(args.url, is_url=True, latitude=args.lat, longitude=args.lon)
     else:
-        identify_animal(args.image, is_url=False)
+        identify_animal(args.image, is_url=False, latitude=args.lat, longitude=args.lon)
 
 
 if __name__ == "__main__":
