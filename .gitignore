@@ -1,0 +1,22 @@
+# Fichiers générés / environnements virtuels / modèles téléchargés
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Images d'exemple locales
+example.jpg
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+
+# TensorFlow / Keras cache (local to project, if overridden via KERAS_HOME)
+.keras/
