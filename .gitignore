@@ -1,22 +1,57 @@
-# Fichiers générés / environnements virtuels / modèles téléchargés
-venv/
-.venv/
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Variables d'environnement
+.env
+.env.local
+.env.*.local
+
+# Dépendances
+node_modules/
+vendor/
 __pycache__/
 *.pyc
 *.pyo
-*.egg-info/
+.venv/
+venv/
+env/
+
+# Build / Distribution
 dist/
 build/
-.eggs/
+out/
+*.egg-info/
+*.egg
+*.whl
+target/
 
-# Images d'exemple locales
-example.jpg
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.webp
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# TensorFlow / Keras cache (local to project, if overridden via KERAS_HOME)
-.keras/
+# Éditeurs & IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+*.user
+*.sublime-workspace
+
+# Tests & couverture
+coverage/
+.coverage
+.nyc_output/
+htmlcov/
+*.lcov
+
+# Divers
+*.tmp
+*.bak
+*.orig
+.cache/

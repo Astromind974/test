@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout du code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Vérification des fichiers essentiels
+        run: |
+          echo "✅ Vérification de la présence des fichiers clés..."
+          test -f README.md    && echo "README.md ✓"   || (echo "README.md manquant ✗" && exit 1)
+          test -f LICENSE      && echo "LICENSE ✓"     || (echo "LICENSE manquant ✗"    && exit 1)
+          test -f .gitignore   && echo ".gitignore ✓"  || (echo ".gitignore manquant ✗" && exit 1)
+          echo "✅ Tous les fichiers essentiels sont présents."
+
+      - name: 📋 Informations sur le dépôt
+        run: |
+          echo "Branche : ${{ github.ref_name }}"
+          echo "Commit  : ${{ github.sha }}"
+          echo "Auteur  : ${{ github.actor }}"
