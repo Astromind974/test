@@ -20,6 +20,7 @@
 - [Utilisation — CLI](#-utilisation--cli)
 - [Utilisation — Application Web](#-utilisation--application-web)
 - [API REST](#-api-rest)
+- [Tests](#-tests)
 - [Structure du projet](#-structure-du-projet)
 - [Contribuer](#-contribuer)
 - [Licence](#-licence)
@@ -158,6 +159,9 @@ Analyse de 1 à 10 images en simultané.
 | Champ    | Type       | Description                              |
 |----------|------------|------------------------------------------|
 | `images` | `File[]`   | 1 à 10 fichiers images                   |
+| `urls`   | `String[]` | 1 à 10 URLs d'images (http/https)        |
+
+> Les deux champs peuvent être combinés ; le total ne doit pas dépasser 10.
 
 **Réponse** (`application/json`) :
 
@@ -194,12 +198,55 @@ Analyse de 1 à 10 images en simultané.
 
 ---
 
+## 🧪 Tests
+
+Le projet inclut une suite de **59 tests unitaires** couvrant les trois modules principaux.
+Les tests s'exécutent **sans TensorFlow** : le modèle MobileNetV2 est remplacé par un mock.
+
+### Installation des dépendances de test
+
+```bash
+pip install -r requirements-dev.txt
+# Flask, Pillow, numpy, requests sont aussi nécessaires (requirements.txt)
+pip install Flask Pillow numpy requests
+```
+
+### Lancer les tests
+
+```bash
+# Tous les tests (avec détail)
+pytest
+
+# Avec rapport de couverture de code
+pytest --cov=. --cov-report=term-missing
+
+# Un seul module de tests
+pytest tests/test_database.py
+pytest tests/test_animal_identifier.py
+pytest tests/test_app.py
+```
+
+### Organisation des tests
+
+| Fichier | Module testé | Ce qui est couvert |
+|---|---|---|
+| `tests/test_database.py` | `database.py` | `init_db`, `save_result`, `list_results` (21 tests) |
+| `tests/test_animal_identifier.py` | `animal_identifier.py` | `is_animal`, `prepare_image` (19 tests) |
+| `tests/test_app.py` | `app.py` | Routes Flask, validation des entrées, `_is_safe_url` (19 tests) |
+
+---
+
 ## 📁 Structure du projet
 
 ```
 test/
 ├── templates/
 │   └── index.html           # Interface web (HTML/CSS/JS)
+├── tests/
+│   ├── conftest.py          # Fixtures et mocks partagés (pytest)
+│   ├── test_app.py          # Tests des routes Flask
+│   ├── test_animal_identifier.py  # Tests is_animal, prepare_image
+│   └── test_database.py     # Tests de la couche SQLite
 ├── .github/
 │   ├── ISSUE_TEMPLATE/      # Modèles d'issues
 │   ├── workflows/           # Pipelines CI/CD
@@ -208,7 +255,9 @@ test/
 ├── app.py                   # Serveur Flask (application web)
 ├── database.py              # Gestion SQLite
 ├── download_example.py      # Télécharge une image de test
-├── requirements.txt         # Dépendances Python
+├── requirements.txt         # Dépendances Python (production)
+├── requirements-dev.txt     # Dépendances de test (pytest)
+├── pytest.ini               # Configuration pytest
 ├── .env.example             # Exemple de configuration
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
