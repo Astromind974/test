@@ -7,13 +7,14 @@
 ![License](https://img.shields.io/github/license/Astromind974/test)
 
 > Identifiez des animaux dans vos photos grâce à MobileNetV2 (ImageNet).  
-> Fonctionne en **ligne de commande** ou via une **application web** permettant l'envoi de 1 à 10 images en simultané.
+> Fonctionne en **ligne de commande** ou via une **application web** composée d'un frontend **React/Vite**, d'un backend **Node.js/Express** et d'un microservice IA en **Python**.
 
 ---
 
 ## 📋 Table des matières
 
 - [À propos](#-à-propos)
+- [Architecture](#-architecture)
 - [Fonctionnalités](#-fonctionnalités)
 - [Prérequis](#-prérequis)
 - [Installation](#-installation)
@@ -30,10 +31,37 @@
 
 ## 📖 À propos
 
-**Animal Identifier** est un outil Python d'identification d'animaux dans des images.  
+**Animal Identifier** est un outil d'identification d'animaux dans des images.  
 Il utilise le réseau de neurones **MobileNetV2** pré-entraîné sur ImageNet (1 000 classes, dont de nombreux animaux) via TensorFlow/Keras.
 
 Les résultats (top-5 prédictions, position GPS optionnelle) sont automatiquement sauvegardés dans une base de données **SQLite locale** (`results.db`).
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Navigateur                                          │
+│  React / Vite  (port 3000 en dev)                    │
+└──────────────────┬───────────────────────────────────┘
+                   │ POST /api/analyze
+                   ▼
+┌──────────────────────────────────────────────────────┐
+│  Backend Node.js / Express  (port 3001)              │
+│  • Validation et protection SSRF                     │
+│  • Téléchargement des images via URL                 │
+│  • Traitement parallèle                              │
+└──────────────────┬───────────────────────────────────┘
+                   │ POST /analyze (par image)
+                   ▼
+┌──────────────────────────────────────────────────────┐
+│  Microservice IA Python / Flask  (port 5001)         │
+│  • MobileNetV2 (TensorFlow)                          │
+│  • animal_identifier.py                              │
+│  • database.py (SQLite)                              │
+└──────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -43,9 +71,10 @@ Les résultats (top-5 prédictions, position GPS optionnelle) sont automatiqueme
 - 🗃️ **Sauvegarde automatique** des résultats dans SQLite (avec position GPS optionnelle)
 - 💻 **Interface CLI** pour une utilisation rapide en terminal
 - 🌐 **Application web** avec :
-  - Glisser-déposer ou sélection de **1 à 10 images simultanées**
+  - Frontend **React** (Vite) — glisser-déposer ou sélection de 1 à 10 images
+  - Backend **Node.js/Express** — validation, protection SSRF, traitement parallèle
+  - Microservice **Python** — MobileNetV2, base de données SQLite
   - Prévisualisation des photos avant envoi
-  - Traitement **en parallèle** côté serveur
   - Affichage des résultats avec barres de confiance par prédiction
 
 ---
@@ -53,6 +82,7 @@ Les résultats (top-5 prédictions, position GPS optionnelle) sont automatiqueme
 ## ✅ Prérequis
 
 - [Python](https://www.python.org/) ≥ 3.10
+- [Node.js](https://nodejs.org/) ≥ 18
 - [Git](https://git-scm.com/) ≥ 2.x
 - _(Optionnel)_ Un environnement virtuel Python (`venv`, `conda`, etc.)
 
@@ -65,17 +95,20 @@ Les résultats (top-5 prédictions, position GPS optionnelle) sont automatiqueme
 git clone https://github.com/Astromind974/test.git
 cd test
 
-# 2. Créer et activer un environnement virtuel (recommandé)
+# 2. Créer et activer un environnement virtuel Python (recommandé)
 python -m venv .venv
 source .venv/bin/activate          # Linux / macOS
 # .venv\Scripts\activate           # Windows
 
-# 3. Installer les dépendances
+# 3. Installer les dépendances Python
 pip install -r requirements.txt
 
-# 4. Copier et adapter les variables d'environnement
+# 4. Installer les dépendances Node.js
+make install-backend
+make install-frontend
+
+# 5. Copier et adapter les variables d'environnement
 cp .env.example .env
-# Éditez .env si vous souhaitez changer le port ou le chemin de la base
 ```
 
 > **Note** : Le modèle MobileNetV2 (~14 Mo) est téléchargé automatiquement lors du premier lancement.
@@ -124,12 +157,20 @@ Exemple de sortie :
 
 ## 🌐 Utilisation — Application Web
 
+Démarrez les trois processus dans trois terminaux distincts :
+
 ```bash
-# Lancer le serveur Flask
-python app.py
+# Terminal 1 — Microservice IA Python (port 5001)
+make run-ai-service
+
+# Terminal 2 — Backend Node.js (port 3001)
+make run-backend
+
+# Terminal 3 — Frontend React (port 3000)
+make run-frontend
 ```
 
-Puis ouvrez **http://localhost:5000** dans votre navigateur.
+Puis ouvrez **http://localhost:3000** dans votre navigateur.
 
 ### Interface
 
@@ -140,11 +181,13 @@ Puis ouvrez **http://localhost:5000** dans votre navigateur.
 
 Variables d'environnement disponibles (fichier `.env`) :
 
-| Variable  | Défaut        | Description                            |
-|-----------|---------------|----------------------------------------|
-| `APP_PORT`| `5000`        | Port d'écoute du serveur Flask         |
-| `APP_ENV` | `development` | `development` active le mode debug     |
-| `DB_PATH` | `results.db`  | Chemin du fichier SQLite               |
+| Variable          | Défaut                    | Description                                  |
+|-------------------|---------------------------|----------------------------------------------|
+| `AI_SERVICE_PORT` | `5001`                    | Port du microservice IA Python               |
+| `BACKEND_PORT`    | `3001`                    | Port du backend Node.js/Express              |
+| `AI_SERVICE_URL`  | `http://localhost:5001`   | URL du microservice IA (utilisée par backend)|
+| `APP_ENV`         | `development`             | `development` active le mode debug Flask     |
+| `DB_PATH`         | `results.db`              | Chemin du fichier SQLite                     |
 
 ---
 
@@ -152,7 +195,7 @@ Variables d'environnement disponibles (fichier `.env`) :
 
 ### `POST /api/analyze`
 
-Analyse de 1 à 10 images en simultané.
+Analyse de 1 à 10 images en simultané (exposé par le backend Node.js sur le port 3001).
 
 **Requête** : `multipart/form-data`
 
@@ -200,39 +243,49 @@ Analyse de 1 à 10 images en simultané.
 
 ## 🧪 Tests
 
-Le projet inclut une suite de **59 tests unitaires** couvrant les trois modules principaux.
-Les tests s'exécutent **sans TensorFlow** : le modèle MobileNetV2 est remplacé par un mock.
+### Tests Python (IA)
 
-### Installation des dépendances de test
+Ces tests couvrent le module IA (`animal_identifier.py`) et la base de données (`database.py`).
+Ils s'exécutent **sans TensorFlow** (le modèle est mocké).
 
 ```bash
+# Installer les dépendances de test
 pip install -r requirements-dev.txt
-# Flask, Pillow, numpy, requests sont aussi nécessaires (requirements.txt)
-pip install Flask Pillow numpy requests
+
+# Lancer les tests Python
+make test-python
+# ou directement :
+pytest tests/test_animal_identifier.py tests/test_database.py --tb=short
+
+# Avec rapport de couverture
+pytest tests/test_animal_identifier.py tests/test_database.py --cov=. --cov-report=term-missing
 ```
 
-### Lancer les tests
+### Tests Node.js (backend)
+
+Ces tests couvrent le backend Express (routes, protection SSRF).
+Le microservice IA Python est mocké via `jest.mock('axios')`.
 
 ```bash
-# Tous les tests (avec détail)
-pytest
+make test-backend
+# ou directement :
+cd backend && npm test
+```
 
-# Avec rapport de couverture de code
-pytest --cov=. --cov-report=term-missing
+### Lancer tous les tests
 
-# Un seul module de tests
-pytest tests/test_database.py
-pytest tests/test_animal_identifier.py
-pytest tests/test_app.py
+```bash
+make test
 ```
 
 ### Organisation des tests
 
-| Fichier | Module testé | Ce qui est couvert |
+| Emplacement | Module testé | Ce qui est couvert |
 |---|---|---|
-| `tests/test_database.py` | `database.py` | `init_db`, `save_result`, `list_results` (21 tests) |
 | `tests/test_animal_identifier.py` | `animal_identifier.py` | `is_animal`, `prepare_image` (19 tests) |
-| `tests/test_app.py` | `app.py` | Routes Flask, validation des entrées, `_is_safe_url` (19 tests) |
+| `tests/test_database.py` | `database.py` | `init_db`, `save_result`, `list_results` (21 tests) |
+| `backend/tests/ssrf.test.js` | `src/utils/ssrf.js` | Détection d'IP privées (8 tests) |
+| `backend/tests/routes.test.js` | `src/routes/analyze.js` | Routes Express, validation, erreurs (11 tests) |
 
 ---
 
@@ -240,25 +293,44 @@ pytest tests/test_app.py
 
 ```
 test/
-├── templates/
-│   └── index.html           # Interface web (HTML/CSS/JS)
+├── ai_service/
+│   └── main.py                  # Microservice IA Python (Flask, port 5001)
+├── backend/
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.js             # Point d'entrée Express (port 3001)
+│   │   ├── routes/
+│   │   │   └── analyze.js       # Route POST /api/analyze
+│   │   └── utils/
+│   │       └── ssrf.js          # Protection SSRF
+│   └── tests/
+│       ├── routes.test.js       # Tests routes Express (Jest)
+│       └── ssrf.test.js         # Tests protection SSRF (Jest)
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.js           # Config Vite (proxy → backend)
+│   ├── index.html
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx              # Interface React principale
+│       └── App.css
 ├── tests/
-│   ├── conftest.py          # Fixtures et mocks partagés (pytest)
-│   ├── test_app.py          # Tests des routes Flask
-│   ├── test_animal_identifier.py  # Tests is_animal, prepare_image
-│   └── test_database.py     # Tests de la couche SQLite
+│   ├── conftest.py              # Fixtures et mocks partagés (pytest)
+│   ├── test_animal_identifier.py # Tests is_animal, prepare_image
+│   └── test_database.py         # Tests de la couche SQLite
 ├── .github/
-│   ├── ISSUE_TEMPLATE/      # Modèles d'issues
-│   ├── workflows/           # Pipelines CI/CD
+│   ├── ISSUE_TEMPLATE/
+│   ├── workflows/
+│   │   └── ci.yml               # Pipelines CI/CD (Python + Node.js)
 │   └── PULL_REQUEST_TEMPLATE.md
-├── animal_identifier.py     # Modèle MobileNetV2 + CLI
-├── app.py                   # Serveur Flask (application web)
-├── database.py              # Gestion SQLite
-├── download_example.py      # Télécharge une image de test
-├── requirements.txt         # Dépendances Python (production)
-├── requirements-dev.txt     # Dépendances de test (pytest)
-├── pytest.ini               # Configuration pytest
-├── .env.example             # Exemple de configuration
+├── animal_identifier.py         # Modèle MobileNetV2 + CLI
+├── database.py                  # Gestion SQLite
+├── download_example.py          # Télécharge une image de test
+├── requirements.txt             # Dépendances Python (production)
+├── requirements-dev.txt         # Dépendances de test Python (pytest)
+├── pytest.ini                   # Configuration pytest
+├── Makefile                     # Commandes de développement
+├── .env.example                 # Exemple de configuration
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
 ├── LICENSE
@@ -291,4 +363,3 @@ Ce projet est sous licence **MIT** — voir le fichier [LICENSE](LICENSE) pour p
 **Astromind974** — [@Astromind974](https://github.com/Astromind974)
 
 Lien du projet : [https://github.com/Astromind974/test](https://github.com/Astromind974/test)
-
