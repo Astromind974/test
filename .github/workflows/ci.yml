@@ -18,6 +18,18 @@ jobs:
       - name: 📥 Checkout du code
         uses: actions/checkout@v4
 
+      - name: 🐍 Configuration de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Installation des dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install Flask Pillow numpy requests
+          pip install -r requirements-dev.txt
+
       - name: 🔍 Vérification des fichiers essentiels
         run: |
           echo "✅ Vérification de la présence des fichiers clés..."
@@ -25,6 +37,10 @@ jobs:
           test -f LICENSE      && echo "LICENSE ✓"     || (echo "LICENSE manquant ✗"    && exit 1)
           test -f .gitignore   && echo ".gitignore ✓"  || (echo ".gitignore manquant ✗" && exit 1)
           echo "✅ Tous les fichiers essentiels sont présents."
+
+      - name: 🧪 Exécution des tests unitaires
+        run: |
+          pytest --tb=short
 
       - name: 📋 Informations sur le dépôt
         run: |
