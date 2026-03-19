@@ -12,10 +12,14 @@ Utilisation :
 """
 
 import io
+import ipaddress
 import os
+import socket
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
+import requests
 from flask import Flask, jsonify, render_template, request
 from PIL import Image
 
@@ -23,6 +27,27 @@ from animal_identifier import is_animal, load_model, prepare_image
 from database import save_result
 
 app = Flask(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Utilitaires de sécurité
+# ---------------------------------------------------------------------------
+
+def _is_safe_url(url: str) -> bool:
+    """
+    Vérifie que l'URL pointe vers une adresse IP publique (prévention SSRF).
+    Bloque les adresses privées, loopback, link-local et multicast.
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        ip_str = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
+        ip = ipaddress.ip_address(ip_str)
+        return ip.is_global
+    except Exception:
+        return False
 
 # ---------------------------------------------------------------------------
 # Chargement du modèle (une seule fois au démarrage de l'application)
@@ -86,12 +111,18 @@ def _analyze_image(image_bytes: bytes, filename: str) -> dict:
         is_animal_detected=animal_detected,
     )
 
-    return {
-        "filename": filename,
-        "top5": [
+    # Construire la liste top5 uniquement si un animal est détecté
+    if animal_detected:
+        top5_result = [
             {"label": lbl.replace("_", " "), "score": round(float(sc) * 100, 2)}
             for _, lbl, sc in top5
-        ],
+        ]
+    else:
+        top5_result = []
+
+    return {
+        "filename": filename,
+        "top5": top5_result,
         "animal_detected": animal_detected,
         "best_label": best_label.replace("_", " "),
         "best_score": round(float(best_score) * 100, 2),
@@ -115,8 +146,11 @@ def analyze():
     """
     Analyse de 1 à 10 images en simultané.
 
-    Attend un formulaire multipart/form-data avec le champ 'images'
-    contenant un ou plusieurs fichiers images (max 10).
+    Attend un formulaire multipart/form-data avec :
+    - le champ 'images' contenant un ou plusieurs fichiers images (max 10)
+    - le champ 'urls' contenant une ou plusieurs URLs d'images (max 10)
+
+    Les deux types peuvent être combinés (total max 10).
 
     Retourne un JSON :
     {
@@ -130,11 +164,12 @@ def analyze():
     """
     files = request.files.getlist("images")
     files = [f for f in files if f.filename != ""]
+    urls = [u.strip() for u in request.form.getlist("urls") if u.strip()]
 
-    if not files:
+    if not files and not urls:
         return jsonify({"error": "Aucune image fournie."}), 400
 
-    if len(files) > 10:
+    if len(files) + len(urls) > 10:
         return jsonify({"error": "Maximum 10 images autorisées par requête."}), 400
 
     # Lecture du contenu de chaque fichier dans le contexte de la requête
@@ -145,6 +180,45 @@ def analyze():
         except Exception as exc:
             return jsonify(
                 {"error": f"Erreur lors de la lecture de {f.filename} : {exc}"}
+            ), 400
+
+    # Téléchargement des images depuis les URLs
+    MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 Mo maximum par image
+    for url in urls:
+        if not (url.startswith("http://") or url.startswith("https://")):
+            return jsonify(
+                {"error": f"URL invalide (seuls http/https sont autorisés) : {url}"}
+            ), 400
+        if not _is_safe_url(url):
+            return jsonify(
+                {"error": f"URL non autorisée (adresse privée ou invalide) : {url}"}
+            ), 400
+        try:
+            response = requests.get(url, timeout=15, stream=True)
+            response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "")
+            if not content_type.startswith("image/"):
+                return jsonify(
+                    {
+                        "error": (
+                            f"L'URL ne pointe pas vers une image "
+                            f"(Content-Type: {content_type}) : {url}"
+                        )
+                    }
+                ), 400
+            chunks = []
+            size = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                size += len(chunk)
+                if size > MAX_IMAGE_SIZE:
+                    return jsonify(
+                        {"error": f"L'image dépasse la taille maximale autorisée (10 Mo) : {url}"}
+                    ), 400
+                chunks.append(chunk)
+            image_data.append((b"".join(chunks), url))
+        except requests.RequestException as exc:
+            return jsonify(
+                {"error": f"Erreur lors du téléchargement de {url} : {exc}"}
             ), 400
 
     # Traitement en parallèle (préparation des images concurrente,

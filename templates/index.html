@@ -104,6 +104,32 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
+    /* URL input */
+    #url-input {
+      width: 100%;
+      min-height: 80px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      padding: .6rem .75rem;
+      font-size: .85rem;
+      color: #2d3748;
+      resize: vertical;
+      font-family: inherit;
+      margin-top: .5rem;
+    }
+    #url-input:focus {
+      outline: none;
+      border-color: #3182ce;
+      box-shadow: 0 0 0 3px rgba(49,130,206,.15);
+    }
+    .url-section-label {
+      font-size: .85rem;
+      color: #4a5568;
+      font-weight: 600;
+      margin-top: 1.25rem;
+      display: block;
+    }
+
     /* Analyze button */
     #btn-analyze {
       display: block;
@@ -281,6 +307,12 @@
     <!-- Thumbnails -->
     <div id="thumb-grid"></div>
 
+    <!-- URL input -->
+    <label class="url-section-label" for="url-input">
+      Ou entrez des URLs d'images (une par ligne) :
+    </label>
+    <textarea id="url-input" placeholder="https://exemple.com/image1.jpg&#10;https://exemple.com/image2.png"></textarea>
+
     <!-- Analyze button -->
     <button id="btn-analyze" disabled>🔍 Analyser les images</button>
   </div>
@@ -305,6 +337,7 @@
   const fileInput   = document.getElementById('file-input');
   const fileCounter = document.getElementById('file-counter');
   const thumbGrid   = document.getElementById('thumb-grid');
+  const urlInput    = document.getElementById('url-input');
   const btnAnalyze  = document.getElementById('btn-analyze');
   const spinner     = document.getElementById('spinner');
   const resultsSection = document.getElementById('results-section');
@@ -320,11 +353,21 @@
 
   function fileKey(f) { return f.name + '-' + f.size; }
 
+  function getUrlList() {
+    return urlInput.value.split('\n').map(u => u.trim()).filter(u => {
+      if (!u) return false;
+      try { const parsed = new URL(u); return parsed.protocol === 'http:' || parsed.protocol === 'https:'; }
+      catch { return false; }
+    });
+  }
+
   function updateCounter() {
     const n = selectedFiles.length;
-    fileCounter.textContent = `${n} / ${MAX_FILES} image(s) sélectionnée(s)`;
-    fileCounter.classList.toggle('warn', n >= MAX_FILES);
-    btnAnalyze.disabled = n === 0;
+    const urlCount = getUrlList().length;
+    const total = n + urlCount;
+    fileCounter.textContent = `${n} fichier(s) + ${urlCount} URL(s) = ${total} / ${MAX_FILES} image(s)`;
+    fileCounter.classList.toggle('warn', total >= MAX_FILES);
+    btnAnalyze.disabled = total === 0;
   }
 
   function renderThumbs() {
@@ -395,14 +438,18 @@
     fileInput.value = '';   // reset so same file can be re-added after removal
   });
 
+  urlInput.addEventListener('input', updateCounter);
+
   // ── Analyze ─────────────────────────────────────────────────────────────
 
   btnAnalyze.addEventListener('click', async () => {
-    if (selectedFiles.length === 0) return;
+    const urlList = getUrlList();
+    if (selectedFiles.length === 0 && urlList.length === 0) return;
 
     // Build form data
     const formData = new FormData();
     selectedFiles.forEach(f => formData.append('images', f));
+    urlList.forEach(u => formData.append('urls', u));
 
     // Show spinner, hide results
     btnAnalyze.disabled = true;
@@ -424,7 +471,7 @@
       showError('Erreur réseau : ' + err.message);
     } finally {
       spinner.style.display = 'none';
-      btnAnalyze.disabled = false;
+      btnAnalyze.disabled = (selectedFiles.length + getUrlList().length) === 0;
     }
   });
 
@@ -435,10 +482,13 @@
     return selectedFiles.find(f => f.name === name) || null;
   }
 
+  function isUrl(str) {
+    return str.startsWith('http://') || str.startsWith('https://');
+  }
+
   function displayResults(data) {
     resultsGrid.innerHTML = '';
 
-    const total = data.total || 0;
     resultsTitle.textContent =
       `Résultats — ${data.success_count} analyse(s) réussie(s)` +
       (data.error_count > 0 ? `, ${data.error_count} erreur(s)` : '');
@@ -465,16 +515,21 @@
     const card = document.createElement('div');
     card.className = 'result-card';
 
-    // Thumbnail from local file
+    // Thumbnail — from local file or directly from URL
     const thumbDiv = document.createElement('div');
     thumbDiv.className = 'card-thumb';
     const file = getFileByName(r.filename);
     if (file) {
       const img = document.createElement('img');
       img.alt = r.filename;
-      const url = URL.createObjectURL(file);
-      img.src = url;
-      img.onload = () => URL.revokeObjectURL(url);
+      const objUrl = URL.createObjectURL(file);
+      img.src = objUrl;
+      img.onload = () => URL.revokeObjectURL(objUrl);
+      thumbDiv.appendChild(img);
+    } else if (isUrl(r.filename)) {
+      const img = document.createElement('img');
+      img.alt = r.filename;
+      img.src = r.filename;
       thumbDiv.appendChild(img);
     }
 
@@ -502,39 +557,74 @@
       badge.textContent = '❌ Pas d\'animal';
     }
 
-    // Predictions
-    const ul = document.createElement('ul');
-    ul.className = 'pred-list';
-    r.top5.forEach((pred, i) => {
+    body.append(title, badge);
+
+    // Predictions — only shown when an animal is detected
+    if (r.animal_detected && r.top5 && r.top5.length > 0) {
+      // Show full top5 list
+      const ul = document.createElement('ul');
+      ul.className = 'pred-list';
+      r.top5.forEach((pred, i) => {
+        const li = document.createElement('li');
+        const labelRow = document.createElement('div');
+        labelRow.className = 'pred-label';
+        const span1 = document.createElement('span');
+        const medals = ['🥇 ', '🥈 ', '🥉 ', '', ''];
+        span1.textContent = (medals[i] || '') + pred.label;
+        const span2 = document.createElement('span');
+        span2.textContent = pred.score.toFixed(1) + ' %';
+        labelRow.append(span1, span2);
+
+        const barBg = document.createElement('div');
+        barBg.className = 'pred-bar-bg';
+        const bar = document.createElement('div');
+        bar.className = 'pred-bar' + (i === 0 ? ' top' : '');
+        bar.style.width = '0%';
+        setTimeout(() => { bar.style.width = Math.min(pred.score, 100) + '%'; }, 50);
+        barBg.appendChild(bar);
+
+        li.append(labelRow, barBg);
+        ul.appendChild(li);
+      });
+      body.appendChild(ul);
+    } else if (r.animal_in_top5) {
+      // Show only the animal found in top5
+      const ul = document.createElement('ul');
+      ul.className = 'pred-list';
       const li = document.createElement('li');
       const labelRow = document.createElement('div');
       labelRow.className = 'pred-label';
       const span1 = document.createElement('span');
-      const medals = ['🥇 ', '🥈 ', '🥉 ', '', ''];
-      span1.textContent = (medals[i] || '') + pred.label;
+      span1.textContent = r.animal_in_top5.label;
       const span2 = document.createElement('span');
-      span2.textContent = pred.score.toFixed(1) + ' %';
+      span2.textContent = r.animal_in_top5.score.toFixed(1) + ' %';
       labelRow.append(span1, span2);
 
       const barBg = document.createElement('div');
       barBg.className = 'pred-bar-bg';
       const bar = document.createElement('div');
-      bar.className = 'pred-bar' + (i === 0 ? ' top' : '');
+      bar.className = 'pred-bar top';
       bar.style.width = '0%';
-      // Animate after render
-      setTimeout(() => { bar.style.width = Math.min(pred.score, 100) + '%'; }, 50);
+      setTimeout(() => { bar.style.width = Math.min(r.animal_in_top5.score, 100) + '%'; }, 50);
       barBg.appendChild(bar);
 
       li.append(labelRow, barBg);
       ul.appendChild(li);
-    });
+      body.appendChild(ul);
+    } else {
+      // No animal at all — just show the message
+      const msg = document.createElement('p');
+      msg.style.cssText = 'font-size:.85rem;color:#9b2c2c;margin-top:.5rem;';
+      msg.textContent = 'Ce n\'est pas un animal.';
+      body.appendChild(msg);
+    }
 
     // DB ID note
     const note = document.createElement('p');
     note.className = 'db-note';
     note.textContent = `💾 Sauvegardé en base (id=${r.db_id})`;
 
-    body.append(title, badge, ul, note);
+    body.appendChild(note);
     card.append(thumbDiv, body);
     return card;
   }
