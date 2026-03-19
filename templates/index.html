@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Identificateur d'Animaux 🐾</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #2b6cb0, #2c7a7b);
+      color: #fff;
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+    }
+    header h1 { font-size: 1.6rem; font-weight: 700; }
+    header p  { font-size: .9rem; opacity: .85; margin-top: .2rem; }
+
+    /* ── Main layout ─────────────────────────────────────────── */
+    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+
+    /* ── Upload card ─────────────────────────────────────────── */
+    .upload-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 1px 8px rgba(0,0,0,.08);
+    }
+
+    /* Drop zone */
+    #drop-zone {
+      border: 2px dashed #90cdf4;
+      border-radius: 10px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+      background: #ebf8ff;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      background: #bee3f8;
+      border-color: #3182ce;
+    }
+    #drop-zone .icon { font-size: 3rem; display: block; margin-bottom: .5rem; }
+    #drop-zone p     { color: #4a5568; }
+    #drop-zone strong { color: #2b6cb0; }
+
+    #file-input { display: none; }
+
+    /* Counter */
+    #file-counter {
+      margin-top: .75rem;
+      font-size: .85rem;
+      color: #718096;
+      text-align: right;
+    }
+    #file-counter.warn { color: #c05621; font-weight: 600; }
+
+    /* Thumbnails */
+    #thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: .75rem;
+      margin-top: 1.25rem;
+    }
+    .thumb-item {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #e2e8f0;
+      aspect-ratio: 1;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+    }
+    .thumb-item img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .thumb-item .remove-btn {
+      position: absolute; top: 3px; right: 3px;
+      background: rgba(0,0,0,.55); color: #fff;
+      border: none; border-radius: 50%;
+      width: 20px; height: 20px;
+      font-size: .7rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+    .thumb-item .remove-btn:hover { background: #e53e3e; }
+    .thumb-item .fname {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,.45); color: #fff;
+      font-size: .6rem; padding: 2px 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* Analyze button */
+    #btn-analyze {
+      display: block;
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: .85rem;
+      background: #2b6cb0;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    #btn-analyze:hover:not(:disabled) { background: #2c5282; }
+    #btn-analyze:disabled {
+      background: #a0aec0;
+      cursor: not-allowed;
+    }
+
+    /* ── Spinner ─────────────────────────────────────────────── */
+    #spinner {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+      color: #4a5568;
+    }
+    #spinner .ring {
+      width: 50px; height: 50px;
+      border: 5px solid #e2e8f0;
+      border-top-color: #2b6cb0;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      display: inline-block;
+      margin-bottom: .75rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ─────────────────────────────────────────────── */
+    #results-section { margin-top: 2rem; }
+    #results-section h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: #2d3748;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .result-card {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 8px rgba(0,0,0,.08);
+      display: flex;
+      flex-direction: column;
+    }
+    .result-card .card-thumb {
+      height: 160px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+    .result-card .card-thumb img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .result-card .card-body { padding: 1rem; flex: 1; }
+
+    .result-card .card-title {
+      font-size: .9rem;
+      font-weight: 600;
+      color: #2d3748;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: .5rem;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: .25rem .65rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 700;
+      margin-bottom: .75rem;
+    }
+    .badge-green  { background: #c6f6d5; color: #276749; }
+    .badge-yellow { background: #fefcbf; color: #7b5400; }
+    .badge-red    { background: #fed7d7; color: #9b2c2c; }
+
+    /* Predictions list */
+    .pred-list { list-style: none; }
+    .pred-list li {
+      margin-bottom: .45rem;
+    }
+    .pred-list .pred-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .8rem;
+      margin-bottom: .15rem;
+    }
+    .pred-list .pred-label span:first-child {
+      text-transform: capitalize;
+      color: #4a5568;
+    }
+    .pred-list .pred-label span:last-child {
+      font-weight: 600;
+      color: #2d3748;
+    }
+    .pred-bar-bg {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .pred-bar {
+      height: 100%;
+      border-radius: 3px;
+      background: #2b6cb0;
+      transition: width .4s ease;
+    }
+    .pred-bar.top { background: #2c7a7b; }
+
+    /* Error card */
+    .error-card {
+      background: #fff5f5;
+      border: 1px solid #fc8181;
+      border-radius: 12px;
+      padding: 1rem;
+      color: #9b2c2c;
+      font-size: .9rem;
+    }
+
+    .db-note {
+      font-size: .72rem;
+      color: #a0aec0;
+      margin-top: .75rem;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ─── Header ──────────────────────────────────────────────────────────── -->
+<header>
+  <span style="font-size:2rem">🐾</span>
+  <div>
+    <h1>Identificateur d'Animaux</h1>
+    <p>Téléchargez de 1 à 10 photos — le modèle MobileNetV2 les analyse en simultané</p>
+  </div>
+</header>
+
+<!-- ─── Main ─────────────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Upload card -->
+  <div class="upload-card">
+    <!-- Drop zone -->
+    <div id="drop-zone" role="button" aria-label="Zone de dépôt d'images" tabindex="0">
+      <span class="icon">📁</span>
+      <p>Glissez-déposez vos images ici<br>ou <strong>cliquez pour sélectionner</strong></p>
+      <p style="font-size:.8rem;margin-top:.5rem;color:#718096">
+        Formats acceptés : JPG, PNG, GIF, WebP — max 10 fichiers
+      </p>
+    </div>
+    <input id="file-input" type="file" accept="image/*" multiple />
+
+    <div id="file-counter">0 / 10 image(s) sélectionnée(s)</div>
+
+    <!-- Thumbnails -->
+    <div id="thumb-grid"></div>
+
+    <!-- Analyze button -->
+    <button id="btn-analyze" disabled>🔍 Analyser les images</button>
+  </div>
+
+  <!-- Spinner -->
+  <div id="spinner">
+    <div class="ring"></div>
+    <p>Analyse en cours… Merci de patienter.</p>
+  </div>
+
+  <!-- Results section -->
+  <div id="results-section" class="hidden">
+    <h2 id="results-title">Résultats</h2>
+    <div id="results-grid" class="results-grid"></div>
+  </div>
+
+</main>
+
+<!-- ─── JavaScript ───────────────────────────────────────────────────────── -->
+<script>
+  const dropZone    = document.getElementById('drop-zone');
+  const fileInput   = document.getElementById('file-input');
+  const fileCounter = document.getElementById('file-counter');
+  const thumbGrid   = document.getElementById('thumb-grid');
+  const btnAnalyze  = document.getElementById('btn-analyze');
+  const spinner     = document.getElementById('spinner');
+  const resultsSection = document.getElementById('results-section');
+  const resultsTitle   = document.getElementById('results-title');
+  const resultsGrid    = document.getElementById('results-grid');
+
+  const MAX_FILES = 10;
+
+  // Map<filename + size, File> — used to keep unique files
+  let selectedFiles = [];
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+
+  function fileKey(f) { return f.name + '-' + f.size; }
+
+  function updateCounter() {
+    const n = selectedFiles.length;
+    fileCounter.textContent = `${n} / ${MAX_FILES} image(s) sélectionnée(s)`;
+    fileCounter.classList.toggle('warn', n >= MAX_FILES);
+    btnAnalyze.disabled = n === 0;
+  }
+
+  function renderThumbs() {
+    thumbGrid.innerHTML = '';
+    selectedFiles.forEach((file, idx) => {
+      const url = URL.createObjectURL(file);
+
+      const item = document.createElement('div');
+      item.className = 'thumb-item';
+
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = file.name;
+      img.onload = () => URL.revokeObjectURL(url);
+
+      const btn = document.createElement('button');
+      btn.className = 'remove-btn';
+      btn.title = 'Retirer';
+      btn.textContent = '✕';
+      btn.addEventListener('click', () => removeFile(idx));
+
+      const label = document.createElement('span');
+      label.className = 'fname';
+      label.textContent = file.name;
+
+      item.append(img, btn, label);
+      thumbGrid.appendChild(item);
+    });
+  }
+
+  function addFiles(newFiles) {
+    const existing = new Set(selectedFiles.map(fileKey));
+    for (const f of newFiles) {
+      if (selectedFiles.length >= MAX_FILES) break;
+      if (!existing.has(fileKey(f))) {
+        existing.add(fileKey(f));
+        selectedFiles.push(f);
+      }
+    }
+    renderThumbs();
+    updateCounter();
+  }
+
+  function removeFile(idx) {
+    selectedFiles.splice(idx, 1);
+    renderThumbs();
+    updateCounter();
+  }
+
+  // ── Drop zone events ────────────────────────────────────────────────────
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    addFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
+  });
+
+  fileInput.addEventListener('change', () => {
+    addFiles([...fileInput.files]);
+    fileInput.value = '';   // reset so same file can be re-added after removal
+  });
+
+  // ── Analyze ─────────────────────────────────────────────────────────────
+
+  btnAnalyze.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) return;
+
+    // Build form data
+    const formData = new FormData();
+    selectedFiles.forEach(f => formData.append('images', f));
+
+    // Show spinner, hide results
+    btnAnalyze.disabled = true;
+    spinner.style.display = 'block';
+    resultsSection.classList.add('hidden');
+    resultsGrid.innerHTML = '';
+
+    try {
+      const resp = await fetch('/api/analyze', { method: 'POST', body: formData });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        showError(data.error || 'Erreur inconnue.');
+        return;
+      }
+
+      displayResults(data);
+    } catch (err) {
+      showError('Erreur réseau : ' + err.message);
+    } finally {
+      spinner.style.display = 'none';
+      btnAnalyze.disabled = false;
+    }
+  });
+
+  // ── Result rendering ─────────────────────────────────────────────────────
+
+  // Keep a lookup of File objects by name for thumbnails in results
+  function getFileByName(name) {
+    return selectedFiles.find(f => f.name === name) || null;
+  }
+
+  function displayResults(data) {
+    resultsGrid.innerHTML = '';
+
+    const total = data.total || 0;
+    resultsTitle.textContent =
+      `Résultats — ${data.success_count} analyse(s) réussie(s)` +
+      (data.error_count > 0 ? `, ${data.error_count} erreur(s)` : '');
+
+    // Success cards
+    (data.results || []).forEach(r => {
+      const card = buildResultCard(r);
+      resultsGrid.appendChild(card);
+    });
+
+    // Error cards
+    (data.errors || []).forEach(e => {
+      const card = document.createElement('div');
+      card.className = 'error-card';
+      card.innerHTML = `<strong>⚠️ ${escHtml(e.filename)}</strong><br>${escHtml(e.error)}`;
+      resultsGrid.appendChild(card);
+    });
+
+    resultsSection.classList.remove('hidden');
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function buildResultCard(r) {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+
+    // Thumbnail from local file
+    const thumbDiv = document.createElement('div');
+    thumbDiv.className = 'card-thumb';
+    const file = getFileByName(r.filename);
+    if (file) {
+      const img = document.createElement('img');
+      img.alt = r.filename;
+      const url = URL.createObjectURL(file);
+      img.src = url;
+      img.onload = () => URL.revokeObjectURL(url);
+      thumbDiv.appendChild(img);
+    }
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    // Title
+    const title = document.createElement('div');
+    title.className = 'card-title';
+    title.title = r.filename;
+    title.textContent = r.filename;
+
+    // Badge
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    if (r.animal_detected) {
+      badge.classList.add('badge-green');
+      badge.textContent = '✅ Animal détecté';
+    } else if (r.animal_in_top5) {
+      badge.classList.add('badge-yellow');
+      badge.textContent = '⚠️ Animal possible';
+    } else {
+      badge.classList.add('badge-red');
+      badge.textContent = '❌ Pas d\'animal';
+    }
+
+    // Predictions
+    const ul = document.createElement('ul');
+    ul.className = 'pred-list';
+    r.top5.forEach((pred, i) => {
+      const li = document.createElement('li');
+      const labelRow = document.createElement('div');
+      labelRow.className = 'pred-label';
+      const span1 = document.createElement('span');
+      const medals = ['🥇 ', '🥈 ', '🥉 ', '', ''];
+      span1.textContent = (medals[i] || '') + pred.label;
+      const span2 = document.createElement('span');
+      span2.textContent = pred.score.toFixed(1) + ' %';
+      labelRow.append(span1, span2);
+
+      const barBg = document.createElement('div');
+      barBg.className = 'pred-bar-bg';
+      const bar = document.createElement('div');
+      bar.className = 'pred-bar' + (i === 0 ? ' top' : '');
+      bar.style.width = '0%';
+      // Animate after render
+      setTimeout(() => { bar.style.width = Math.min(pred.score, 100) + '%'; }, 50);
+      barBg.appendChild(bar);
+
+      li.append(labelRow, barBg);
+      ul.appendChild(li);
+    });
+
+    // DB ID note
+    const note = document.createElement('p');
+    note.className = 'db-note';
+    note.textContent = `💾 Sauvegardé en base (id=${r.db_id})`;
+
+    body.append(title, badge, ul, note);
+    card.append(thumbDiv, body);
+    return card;
+  }
+
+  function showError(msg) {
+    resultsGrid.innerHTML = `<div class="error-card"><strong>⚠️ Erreur</strong><br>${escHtml(msg)}</div>`;
+    resultsTitle.textContent = 'Résultats';
+    resultsSection.classList.remove('hidden');
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+
+</body>
+</html>
