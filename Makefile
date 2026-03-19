@@ -1,41 +1,42 @@
-# Makefile for Animal Identifier CLI & Flask Web App
+# Makefile for Animal Identifier (React + Node.js)
 
-.PHONY: install install-dev run-cli run-webapp test clean help
+.PHONY: install install-dev run-backend run-frontend run test clean help
 
-# Target to install production dependencies
+# Install all dependencies
 install:
-	pip install -r requirements.txt
+	cd backend && npm install
+	cd frontend && npm install
 
-# Target to install all dependencies (production + development/test)
-install-dev:
-	pip install -r requirements.txt
-	pip install -r requirements-dev.txt
+# Same as install (no separate dev deps needed)
+install-dev: install
 
-# Target to run the animal identifier CLI
-run-cli:
-	python animal_identifier.py
+# Run the Node.js backend
+run-backend:
+	cd backend && npm start
 
-# Target to launch the Flask web app
-run-webapp:
-	python app.py
+# Run the React frontend development server
+run-frontend:
+	cd frontend && npm run dev
 
-# Target to run tests (installs dev dependencies first)
-test: install-dev
-	pytest
+# Run both backend (default entry point)
+run: run-backend
 
-# Target to clean up build files
+# Run backend tests
+test:
+	cd backend && npm test
+
+# Clean build artifacts and node_modules
 clean:
-	find . -type d -name __pycache__ -exec rm -r {} +
-	find . -type f -name '*.pyc' -delete
+	rm -rf frontend/build
+	rm -rf backend/node_modules frontend/node_modules
 
-# Target to display help
+# Help
 help:
 	@echo "Usage: make [target]"
 	@echo "Available targets:"
-	@echo "  install        Install production dependencies (requirements.txt)"
-	@echo "  install-dev    Install all dependencies (requirements.txt + requirements-dev.txt)"
-	@echo "  run-cli        Run the animal identifier CLI (animal_identifier.py)"
-	@echo "  run-webapp     Launch the Flask web app (app.py)"
-	@echo "  test           Install dev dependencies then run tests with pytest"
-	@echo "  clean          Clean up build files (__pycache__, *.pyc)"
-	@echo "  help           Display this help message"
+	@echo "  install       Install all dependencies"
+	@echo "  run-backend   Start the Node.js backend (http://localhost:5000)"
+	@echo "  run-frontend  Start the React development server (http://localhost:3000)"
+	@echo "  test          Run backend tests (Jest)"
+	@echo "  clean         Remove build artifacts and node_modules"
+	@echo "  help          Display this help message"
