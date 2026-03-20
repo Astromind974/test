@@ -158,3 +158,56 @@ describe("POST /api/analyze — erreur service IA", () => {
     expect(res.body.errors[0].error).toMatch(/Service IA/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/locations
+// ---------------------------------------------------------------------------
+
+describe("GET /api/locations — succès", () => {
+  const MOCK_LOCATIONS = {
+    locations: [
+      {
+        id: 1,
+        source: "cat.jpg",
+        latitude: 48.8566,
+        longitude: 2.3522,
+        top1_label: "tabby",
+        top1_score: 62.35,
+        timestamp: "2024-01-01T00:00:00+00:00",
+        is_animal: 1,
+      },
+    ],
+  };
+
+  test("retourne 200 avec la liste des positions", async () => {
+    axios.get.mockResolvedValue({ data: MOCK_LOCATIONS });
+    const res = await request(app).get("/api/locations");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("locations");
+    expect(Array.isArray(res.body.locations)).toBe(true);
+  });
+
+  test("la réponse est du JSON", async () => {
+    axios.get.mockResolvedValue({ data: MOCK_LOCATIONS });
+    const res = await request(app).get("/api/locations");
+    expect(res.headers["content-type"]).toMatch(/application\/json/);
+  });
+
+  test("chaque position contient les champs requis", async () => {
+    axios.get.mockResolvedValue({ data: MOCK_LOCATIONS });
+    const res = await request(app).get("/api/locations");
+    const loc = res.body.locations[0];
+    for (const field of ["id", "source", "latitude", "longitude", "top1_label", "top1_score", "timestamp", "is_animal"]) {
+      expect(loc).toHaveProperty(field);
+    }
+  });
+});
+
+describe("GET /api/locations — erreur service IA", () => {
+  test("erreur IA → 502", async () => {
+    axios.get.mockRejectedValue(new Error("Service IA indisponible"));
+    const res = await request(app).get("/api/locations");
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBeDefined();
+  });
+});

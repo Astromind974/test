@@ -27,7 +27,7 @@ from flask import Flask, jsonify, request
 from PIL import Image
 
 from animal_identifier import extract_gps_from_exif, is_animal, load_model, prepare_image
-from database import result_exists, save_result
+from database import list_results, result_exists, save_result
 
 app = Flask(__name__)
 
@@ -154,6 +154,46 @@ def analyze():
             "longitude": longitude,
         }
     )
+
+
+@app.route("/locations", methods=["GET"])
+def locations():
+    """
+    Retourne la liste des identifications ayant une position géographique.
+
+    Sortie : JSON
+        {
+            "locations": [
+                {
+                    "id": int,
+                    "source": str,
+                    "latitude": float,
+                    "longitude": float,
+                    "top1_label": str,
+                    "top1_score": float,
+                    "timestamp": str,
+                    "is_animal": int
+                },
+                ...
+            ]
+        }
+    """
+    rows = list_results(limit=500)
+    geo = [
+        {
+            "id": r["id"],
+            "source": r["source"],
+            "latitude": r["latitude"],
+            "longitude": r["longitude"],
+            "top1_label": r["top1_label"],
+            "top1_score": r["top1_score"],
+            "timestamp": r["timestamp"],
+            "is_animal": r["is_animal"],
+        }
+        for r in rows
+        if r.get("latitude") is not None and r.get("longitude") is not None
+    ]
+    return jsonify({"locations": geo})
 
 
 # ---------------------------------------------------------------------------

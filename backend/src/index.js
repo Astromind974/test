@@ -11,6 +11,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const analyzeRouter = require("./routes/analyze");
+const locationsRouter = require("./routes/locations");
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
@@ -25,6 +26,7 @@ app.use(express.json());
 // Routes
 // ---------------------------------------------------------------------------
 app.use("/api/analyze", analyzeRouter);
+app.use("/api/locations", locationsRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
