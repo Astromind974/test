@@ -11,7 +11,7 @@ import sqlite3
 
 import pytest
 
-from database import get_connection, init_db, list_results, save_result
+from database import get_connection, init_db, list_results, save_result, result_exists, clear_db
 
 
 # ---------------------------------------------------------------------------
@@ -208,3 +208,56 @@ class TestListResults:
             save_result(f"img{i}.jpg", _make_top5(), True, db_path=db_path)
         results = list_results(db_path=db_path)
         assert len(results) == 20
+
+
+# ---------------------------------------------------------------------------
+# Tests : result_exists
+# ---------------------------------------------------------------------------
+
+
+class TestResultExists:
+    def test_returns_false_on_empty_db(self, db_path):
+        assert result_exists("photo.jpg", db_path=db_path) is False
+
+    def test_returns_true_after_save(self, db_path):
+        save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        assert result_exists("photo.jpg", db_path=db_path) is True
+
+    def test_returns_false_for_different_source(self, db_path):
+        save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        assert result_exists("other.jpg", db_path=db_path) is False
+
+    def test_duplicate_not_inserted(self, db_path):
+        """Un deuxième enregistrement avec la même source ne doit pas être ajouté si on vérifie avant."""
+        save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        exists = result_exists("photo.jpg", db_path=db_path)
+        if not exists:
+            save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        results = list_results(db_path=db_path)
+        assert len(results) == 1  # seul le premier enregistrement
+
+
+# ---------------------------------------------------------------------------
+# Tests : clear_db
+# ---------------------------------------------------------------------------
+
+
+class TestClearDb:
+    def test_empty_db_stays_empty(self, db_path):
+        clear_db(db_path=db_path)
+        assert list_results(db_path=db_path) == []
+
+    def test_clears_all_records(self, db_path):
+        for i in range(5):
+            save_result(f"img{i}.jpg", _make_top5(), True, db_path=db_path)
+        clear_db(db_path=db_path)
+        assert list_results(db_path=db_path) == []
+
+    def test_table_still_usable_after_clear(self, db_path):
+        save_result("before.jpg", _make_top5(), True, db_path=db_path)
+        clear_db(db_path=db_path)
+        row_id = save_result("after.jpg", _make_top5(), True, db_path=db_path)
+        assert row_id >= 1
+        results = list_results(db_path=db_path)
+        assert len(results) == 1
+        assert results[0]["source"] == "after.jpg"

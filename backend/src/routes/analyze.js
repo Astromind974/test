@@ -29,14 +29,18 @@ const upload = multer({
  * Envoie des données d'image (Buffer + nom) au service IA Python
  * et retourne le résultat d'analyse.
  *
- * @param {Buffer} buffer   - Contenu binaire de l'image
- * @param {string} filename - Nom de fichier utilisé comme source
+ * @param {Buffer} buffer    - Contenu binaire de l'image
+ * @param {string} filename  - Nom de fichier utilisé comme source
+ * @param {string|null} latitude  - Latitude GPS (optionnel)
+ * @param {string|null} longitude - Longitude GPS (optionnel)
  * @returns {Promise<object>} Résultat d'analyse
  */
-async function analyzeWithAI(buffer, filename) {
+async function analyzeWithAI(buffer, filename, latitude, longitude) {
   const form = new FormData();
   form.append("image", buffer, { filename, contentType: "application/octet-stream" });
   form.append("filename", filename);
+  if (latitude != null && latitude !== "") form.append("latitude", String(latitude));
+  if (longitude != null && longitude !== "") form.append("longitude", String(longitude));
 
   const response = await axios.post(`${AI_SERVICE_URL}/analyze`, form, {
     headers: form.getHeaders(),
@@ -79,6 +83,10 @@ router.post("/", multerMiddleware, async (req, res) => {
     ? (Array.isArray(req.body.urls) ? req.body.urls : [req.body.urls])
     : [];
   const urls = rawUrls.map((u) => u.trim()).filter(Boolean);
+
+  // Coordonnées GPS optionnelles (applicables à toutes les images de la requête)
+  const latitude = body.latitude ?? null;
+  const longitude = body.longitude ?? null;
 
   if (files.length + urls.length === 0) {
     return res.status(400).json({ error: "Aucune image fournie." });
@@ -136,7 +144,7 @@ router.post("/", multerMiddleware, async (req, res) => {
   await Promise.all(
     imageData.map(async ({ buffer, filename }) => {
       try {
-        const result = await analyzeWithAI(buffer, filename);
+        const result = await analyzeWithAI(buffer, filename, latitude, longitude);
         results.push(result);
       } catch (err) {
         errors.push({ filename, error: err.message });

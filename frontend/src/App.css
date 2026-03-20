@@ -363,3 +363,61 @@ body {
   border-radius: 6px;
   padding: 0.4rem 0.6rem;
 }
+
+/* GPS input section */
+.gps-input-section {
+  margin-top: 1.25rem;
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+}
+
+.gps-input-label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.75rem;
+}
+
+.gps-fields {
+  display: flex;
+  gap: 1rem;
+}
+
+.gps-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.gps-field label {
+  font-size: 0.85rem;
+  color: #4a5568;
+}
+
+.gps-input {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: #2d3748;
+  background: #f7fafc;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.gps-input:focus {
+  outline: none;
+  border-color: #4299e1;
+  background: #fff;
+}
+
+/* Location display in result card */
+.result-location {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #718096;
+}

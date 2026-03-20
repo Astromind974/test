@@ -18,11 +18,63 @@ import io
 import sys
 from pathlib import Path
 
-from database import save_result
+from database import result_exists, save_result
 
 import numpy as np
 import requests
 from PIL import Image
+
+# ---------------------------------------------------------------------------
+# Étape 0 : Extraction GPS depuis les métadonnées EXIF
+# ---------------------------------------------------------------------------
+
+
+def _dms_to_decimal(dms, ref: str) -> float:
+    """Convertit des coordonnées DMS (degrés, minutes, secondes) en degrés décimaux."""
+    if not dms or len(dms) < 3:
+        raise ValueError(f"Format DMS invalide : {dms!r}")
+    degrees = float(dms[0])
+    minutes = float(dms[1])
+    seconds = float(dms[2])
+    decimal = degrees + minutes / 60 + seconds / 3600
+    if ref in ("S", "W"):
+        decimal = -decimal
+    return decimal
+
+
+def extract_gps_from_exif(img: Image.Image) -> tuple:
+    """
+    Extrait les coordonnées GPS depuis les métadonnées EXIF de l'image.
+
+    Retourne (latitude, longitude) en degrés décimaux,
+    ou (None, None) si les données sont absentes ou illisibles.
+    """
+    # Tag EXIF pour GPSInfo (IFD ID 34853 / 0x8825)
+    GPS_INFO_TAG = 34853
+
+    try:
+        exif = img.getexif()
+        if not exif:
+            return None, None
+
+        gps_data = exif.get_ifd(GPS_INFO_TAG)
+        if not gps_data:
+            return None, None
+
+        lat_dms = gps_data.get(2)   # GPSLatitude
+        lat_ref = gps_data.get(1)   # GPSLatitudeRef
+        lon_dms = gps_data.get(4)   # GPSLongitude
+        lon_ref = gps_data.get(3)   # GPSLongitudeRef
+
+        if not (lat_dms and lat_ref and lon_dms and lon_ref):
+            return None, None
+
+        lat = _dms_to_decimal(lat_dms, lat_ref)
+        lon = _dms_to_decimal(lon_dms, lon_ref)
+        return lat, lon
+    except Exception:
+        return None, None
+
 
 # ---------------------------------------------------------------------------
 # Étape 1 : Charger le modèle pré-entraîné
@@ -52,23 +104,23 @@ def load_model():
 # ---------------------------------------------------------------------------
 
 def load_image_from_file(path: str) -> Image.Image:
-    """Ouvre une image depuis un chemin local."""
+    """Ouvre une image depuis un chemin local (préserve les EXIF pour extraction GPS)."""
     file_path = Path(path)
     if not file_path.exists():
         print(f"❌  Fichier introuvable : {path}", file=sys.stderr)
         sys.exit(1)
-    return Image.open(file_path).convert("RGB")
+    return Image.open(file_path)
 
 
 def load_image_from_url(url: str) -> Image.Image:
-    """Télécharge une image depuis une URL."""
+    """Télécharge une image depuis une URL (préserve les EXIF pour extraction GPS)."""
     try:
         response = requests.get(url, timeout=15)
         response.raise_for_status()
     except requests.RequestException as exc:
         print(f"❌  Impossible de télécharger l'image : {exc}", file=sys.stderr)
         sys.exit(1)
-    return Image.open(io.BytesIO(response.content)).convert("RGB")
+    return Image.open(io.BytesIO(response.content))
 
 
 def prepare_image(img: Image.Image, preprocess_input) -> np.ndarray:
@@ -125,13 +177,21 @@ def identify_animal(
     # 1. Modèle
     model, preprocess_input, decode_predictions = load_model()
 
-    # 2. Image
+    # 2. Image (on ouvre sans conversion pour accéder aux EXIF avant le convert)
     print(f"📷  Chargement de l'image : {image_source}")
     if is_url:
-        img = load_image_from_url(image_source)
+        img_raw = load_image_from_url(image_source)
     else:
-        img = load_image_from_file(image_source)
-    print(f"     Taille originale : {img.size[0]}×{img.size[1]} px\n")
+        img_raw = load_image_from_file(image_source)
+    print(f"     Taille originale : {img_raw.size[0]}×{img_raw.size[1]} px\n")
+
+    # 2b. Extraction GPS depuis les EXIF si les coordonnées ne sont pas fournies
+    if latitude is None and longitude is None:
+        latitude, longitude = extract_gps_from_exif(img_raw)
+        if latitude is not None:
+            print(f"📍  Position GPS extraite des EXIF : lat={latitude:.6f}, lon={longitude:.6f}")
+
+    img = img_raw.convert("RGB")
 
     # 3. Préparation
     img_array = prepare_image(img, preprocess_input)
@@ -176,17 +236,23 @@ def identify_animal(
                 f"Meilleur résultat : {best_label} ({best_score * 100:.2f} %)."
             )
 
-    # 7. Sauvegarde dans la base de données
+    # 7. Sauvegarde dans la base de données (uniquement si animal détecté et non dupliqué)
     has_location = latitude is not None and longitude is not None
-    row_id = save_result(
-        source=image_source,
-        top5=top5,
-        is_animal_detected=animal_detected,
-        latitude=latitude if has_location else None,
-        longitude=longitude if has_location else None,
-    )
-    loc_info = f" | position : lat={latitude}, lon={longitude}" if has_location else ""
-    print(f"\n💾  Résultat sauvegardé en base de données (id={row_id}{loc_info}).")
+    if animal_detected:
+        if result_exists(image_source):
+            print(f"\n⏭️  Résultat déjà présent en base de données pour : {image_source}")
+        else:
+            row_id = save_result(
+                source=image_source,
+                top5=top5,
+                is_animal_detected=True,
+                latitude=latitude if has_location else None,
+                longitude=longitude if has_location else None,
+            )
+            loc_info = f" | position : lat={latitude}, lon={longitude}" if has_location else ""
+            print(f"\n💾  Résultat sauvegardé en base de données (id={row_id}{loc_info}).")
+    else:
+        print("\n⚠️  Aucun animal détecté avec certitude — résultat non sauvegardé.")
 
 
 # ---------------------------------------------------------------------------

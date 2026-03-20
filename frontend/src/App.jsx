@@ -70,7 +70,17 @@ function ResultCard({ result, imageUrl }) {
           ❌ Aucun animal dans cette image.
         </p>
       )}
-      <p className="result-dbid">💾 Sauvegardé (id={result.db_id})</p>
+      {result.db_id != null && (
+        <p className="result-dbid">💾 Sauvegardé (id={result.db_id})</p>
+      )}
+      {result.animal_detected && result.db_id == null && (
+        <p className="result-dbid">⏭️ Non sauvegardé (déjà présent ou erreur)</p>
+      )}
+      {(result.latitude != null || result.longitude != null) && (
+        <p className="result-location">
+          📍 Position : lat={result.latitude?.toFixed(6)}, lon={result.longitude?.toFixed(6)}
+        </p>
+      )}
     </div>
   )
 }
@@ -79,6 +89,8 @@ export default function App() {
   const [files, setFiles] = useState([])
   const [previews, setPreviews] = useState([])
   const [urlInput, setUrlInput] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
   const [loading, setLoading] = useState(false)
   const [response, setResponse] = useState(null)
   const [error, setError] = useState(null)
@@ -134,6 +146,8 @@ export default function App() {
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
     urls.forEach((url) => formData.append('urls', url))
+    if (latitude.trim()) formData.append('latitude', latitude.trim())
+    if (longitude.trim()) formData.append('longitude', longitude.trim())
 
     try {
       const res = await fetch('/api/analyze', { method: 'POST', body: formData })
@@ -224,6 +238,38 @@ export default function App() {
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="gps-input-section">
+            <label className="gps-input-label">
+              📍 Position géographique (optionnel — extraite des EXIF si disponible)
+            </label>
+            <div className="gps-fields">
+              <div className="gps-field">
+                <label htmlFor="lat-input">Latitude</label>
+                <input
+                  id="lat-input"
+                  type="number"
+                  step="any"
+                  className="gps-input"
+                  placeholder="ex : 48.8566"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                />
+              </div>
+              <div className="gps-field">
+                <label htmlFor="lon-input">Longitude</label>
+                <input
+                  id="lon-input"
+                  type="number"
+                  step="any"
+                  className="gps-input"
+                  placeholder="ex : 2.3522"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
 
           {error && <p className="error-msg">⚠️ {error}</p>}
