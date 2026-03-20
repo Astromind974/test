@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import './App.css'
+import MapTab from './MapTab'
 
 const MAX_FILES = 10
 const LOW_CONFIDENCE_THRESHOLD = 30
@@ -86,6 +87,7 @@ function ResultCard({ result, imageUrl }) {
 }
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('identifier')
   const [files, setFiles] = useState([])
   const [previews, setPreviews] = useState([])
   const [urlInput, setUrlInput] = useState('')
@@ -173,7 +175,26 @@ export default function App() {
         <p>Identifiez des animaux dans vos photos grâce à MobileNetV2</p>
       </header>
 
+      <nav className="tab-nav">
+        <button
+          className={`tab-btn${activeTab === 'identifier' ? ' active' : ''}`}
+          onClick={() => setActiveTab('identifier')}
+        >
+          🔍 Identifier
+        </button>
+        <button
+          className={`tab-btn${activeTab === 'map' ? ' active' : ''}`}
+          onClick={() => setActiveTab('map')}
+        >
+          🗺️ Carte
+        </button>
+      </nav>
+
       <main>
+        {activeTab === 'map' ? (
+          <MapTab />
+        ) : (
+          <>
         <form onSubmit={handleSubmit}>
           <div
             className="dropzone"
@@ -301,6 +322,8 @@ export default function App() {
               ))}
             </div>
           </section>
+        )}
+          </>
         )}
       </main>
     </div>
