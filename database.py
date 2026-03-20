@@ -6,6 +6,13 @@ d'identification d'animaux avec leur position géographique.
 
 La base de données est créée automatiquement dans le fichier
 défini par DB_PATH (par défaut : results.db).
+
+Fonctions publiques :
+    init_db       – crée les tables si elles n'existent pas encore
+    save_result   – enregistre un résultat (animaux uniquement) si non dupliqué
+    result_exists – vérifie si une source est déjà enregistrée
+    clear_db      – supprime tous les enregistrements
+    list_results  – liste les derniers résultats
 """
 
 import sqlite3
@@ -111,6 +118,26 @@ def save_result(
         row_id = cursor.lastrowid
     conn.close()
     return row_id
+
+
+def result_exists(source: str, db_path: str = DB_PATH) -> bool:
+    """Retourne True si un résultat avec la même source est déjà enregistré."""
+    init_db(db_path)
+    conn = get_connection(db_path)
+    row = conn.execute(
+        "SELECT id FROM identifications WHERE source = ? LIMIT 1", (source,)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def clear_db(db_path: str = DB_PATH) -> None:
+    """Supprime tous les enregistrements de la table identifications."""
+    init_db(db_path)
+    conn = get_connection(db_path)
+    with conn:
+        conn.execute("DELETE FROM identifications")
+    conn.close()
 
 
 def list_results(limit: int = 20, db_path: str = DB_PATH) -> list:

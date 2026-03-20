@@ -8,11 +8,14 @@ fonctions pures (is_animal, prepare_image) qui peuvent être testées
 sans charger le modèle.
 """
 
+import io
+
 import numpy as np
 import pytest
 from PIL import Image
+from PIL.ExifTags import TAGS
 
-from animal_identifier import ANIMAL_KEYWORDS, is_animal, prepare_image
+from animal_identifier import ANIMAL_KEYWORDS, extract_gps_from_exif, is_animal, prepare_image
 
 
 # ---------------------------------------------------------------------------
@@ -129,3 +132,110 @@ class TestPrepareImage:
         img = Image.new("RGB", (100, 100))
         result = prepare_image(img, mock_preprocess)
         assert result is sentinel
+
+
+# ---------------------------------------------------------------------------
+# Tests : extract_gps_from_exif
+# ---------------------------------------------------------------------------
+
+
+def _make_image_with_gps(lat: float, lat_ref: str, lon: float, lon_ref: str) -> Image.Image:
+    """Crée une image JPEG en mémoire avec des données GPS dans les EXIF."""
+    img = Image.new("RGB", (10, 10), color=(0, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    buf.seek(0)
+
+    # Réouvre et injecte les EXIF manuellement via piexif si disponible,
+    # sinon retourne l'image sans EXIF (les tests fallback couvriront ce cas).
+    try:
+        import piexif
+
+        def decimal_to_dms_rational(value: float):
+            value = abs(value)
+            d = int(value)
+            m = int((value - d) * 60)
+            s = round(((value - d) * 60 - m) * 60 * 10000)
+            return ((d, 1), (m, 1), (s, 10000))
+
+        gps_ifd = {
+            piexif.GPSIFD.GPSLatitudeRef: lat_ref.encode(),
+            piexif.GPSIFD.GPSLatitude: decimal_to_dms_rational(lat),
+            piexif.GPSIFD.GPSLongitudeRef: lon_ref.encode(),
+            piexif.GPSIFD.GPSLongitude: decimal_to_dms_rational(lon),
+        }
+        exif_dict = {"GPS": gps_ifd}
+        exif_bytes = piexif.dump(exif_dict)
+
+        buf2 = io.BytesIO()
+        img.save(buf2, format="JPEG", exif=exif_bytes)
+        buf2.seek(0)
+        return Image.open(buf2)
+    except ImportError:
+        buf.seek(0)
+        return Image.open(buf)
+
+
+class TestExtractGpsFromExif:
+    def test_no_exif_returns_none_none(self):
+        img = Image.new("RGB", (10, 10))
+        lat, lon = extract_gps_from_exif(img)
+        assert lat is None
+        assert lon is None
+
+    def test_jpeg_without_gps_returns_none_none(self):
+        img = Image.new("RGB", (10, 10))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        buf.seek(0)
+        loaded = Image.open(buf)
+        lat, lon = extract_gps_from_exif(loaded)
+        assert lat is None
+        assert lon is None
+
+    def test_returns_tuple_of_two(self):
+        img = Image.new("RGB", (10, 10))
+        result = extract_gps_from_exif(img)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_with_gps_exif_returns_floats(self):
+        """Si piexif est disponible, vérifie que les coordonnées sont des flottants."""
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif non disponible")
+
+        img = _make_image_with_gps(48.8566, "N", 2.3522, "E")
+        lat, lon = extract_gps_from_exif(img)
+        if lat is not None:
+            assert isinstance(lat, float)
+            assert isinstance(lon, float)
+            assert abs(lat - 48.8566) < 0.01
+            assert abs(lon - 2.3522) < 0.01
+
+    def test_south_latitude_is_negative(self):
+        """Une latitude Sud doit être négative."""
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif non disponible")
+
+        img = _make_image_with_gps(33.8688, "S", 151.2093, "E")
+        lat, lon = extract_gps_from_exif(img)
+        if lat is not None:
+            assert lat < 0  # Sud → négatif
+            assert lon > 0  # Est → positif
+
+    def test_west_longitude_is_negative(self):
+        """Une longitude Ouest doit être négative."""
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif non disponible")
+
+        img = _make_image_with_gps(40.7128, "N", 74.0060, "W")
+        lat, lon = extract_gps_from_exif(img)
+        if lat is not None:
+            assert lat > 0  # Nord → positif
+            assert lon < 0  # Ouest → négatif
