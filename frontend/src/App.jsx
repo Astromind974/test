@@ -13,7 +13,7 @@ function ConfidenceBar({ score }) {
   )
 }
 
-function ResultCard({ result }) {
+function ResultCard({ result, imageUrl }) {
   const lowConfidence = result.animal_detected && result.best_score < LOW_CONFIDENCE_THRESHOLD
 
   let cardClass
@@ -34,6 +34,9 @@ function ResultCard({ result }) {
 
   return (
     <div className={cardClass}>
+      {imageUrl && (
+        <img src={imageUrl} alt={result.filename} className="result-img" />
+      )}
       <h3 className="result-filename">{result.filename}</h3>
       <div className="result-badge">{badge}</div>
       <p className="result-best">
@@ -79,6 +82,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [response, setResponse] = useState(null)
   const [error, setError] = useState(null)
+  const [imageMap, setImageMap] = useState({})
 
   const urls = useMemo(
     () => urlInput.split(/[\n,]+/).map((u) => u.trim()).filter(Boolean),
@@ -121,6 +125,11 @@ export default function App() {
     setLoading(true)
     setError(null)
     setResponse(null)
+
+    const map = {}
+    previews.forEach((p) => { map[p.name] = p.url })
+    urls.forEach((url) => { map[url] = url })
+    setImageMap(map)
 
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
@@ -242,7 +251,7 @@ export default function App() {
             ))}
             <div className="results-grid">
               {response.results.map((result) => (
-                <ResultCard key={result.filename} result={result} />
+                <ResultCard key={result.filename} result={result} imageUrl={imageMap[result.filename]} />
               ))}
             </div>
           </section>
