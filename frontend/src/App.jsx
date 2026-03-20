@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import './App.css'
 
 const MAX_FILES = 10
+const LOW_CONFIDENCE_THRESHOLD = 30
 
 function ConfidenceBar({ score }) {
   return (
@@ -13,12 +14,28 @@ function ConfidenceBar({ score }) {
 }
 
 function ResultCard({ result }) {
+  const lowConfidence = result.animal_detected && result.best_score < LOW_CONFIDENCE_THRESHOLD
+
+  let cardClass
+  let badge
+  if (result.animal_detected && !lowConfidence) {
+    cardClass = 'result-card animal'
+    badge = '✅ Animal détecté'
+  } else if (result.animal_detected && lowConfidence) {
+    cardClass = 'result-card maybe-animal'
+    badge = '⚠️ Cela pourrait être un animal'
+  } else if (!result.animal_detected && result.animal_in_top5) {
+    cardClass = 'result-card maybe-animal'
+    badge = '⚠️ Cela pourrait être un animal'
+  } else {
+    cardClass = 'result-card no-animal'
+    badge = '❌ Aucun animal dans cette image'
+  }
+
   return (
-    <div className={`result-card ${result.animal_detected ? 'animal' : 'no-animal'}`}>
+    <div className={cardClass}>
       <h3 className="result-filename">{result.filename}</h3>
-      <div className="result-badge">
-        {result.animal_detected ? '✅ Animal détecté' : '❌ Aucun animal'}
-      </div>
+      <div className="result-badge">{badge}</div>
       <p className="result-best">
         <strong>Meilleure prédiction :</strong>{' '}
         {result.best_label} — {result.best_score.toFixed(2)} %
@@ -33,10 +50,21 @@ function ResultCard({ result }) {
           ))}
         </ul>
       )}
+      {lowConfidence && (
+        <p className="result-hint">
+          ⚠️ Faible confiance — cela pourrait être :{' '}
+          <strong>{result.best_label}</strong> ({result.best_score.toFixed(2)} %)
+        </p>
+      )}
       {!result.animal_detected && result.animal_in_top5 && (
         <p className="result-hint">
-          ⚠️ Animal possible dans le top-5 :{' '}
+          ⚠️ Cela pourrait être :{' '}
           <strong>{result.animal_in_top5.label}</strong> ({result.animal_in_top5.score.toFixed(2)} %)
+        </p>
+      )}
+      {!result.animal_detected && !result.animal_in_top5 && (
+        <p className="result-no-animal">
+          ❌ Aucun animal dans cette image.
         </p>
       )}
       <p className="result-dbid">💾 Sauvegardé (id={result.db_id})</p>
@@ -47,9 +75,15 @@ function ResultCard({ result }) {
 export default function App() {
   const [files, setFiles] = useState([])
   const [previews, setPreviews] = useState([])
+  const [urlInput, setUrlInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [response, setResponse] = useState(null)
   const [error, setError] = useState(null)
+
+  const urls = useMemo(
+    () => urlInput.split(/[\n,]+/).map((u) => u.trim()).filter(Boolean),
+    [urlInput],
+  )
 
   const addFiles = useCallback((newFiles) => {
     setFiles((prev) => {
@@ -83,13 +117,14 @@ export default function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (files.length === 0) return
+    if (files.length === 0 && urls.length === 0) return
     setLoading(true)
     setError(null)
     setResponse(null)
 
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
+    urls.forEach((url) => formData.append('urls', url))
 
     try {
       const res = await fetch('/api/analyze', { method: 'POST', body: formData })
@@ -105,6 +140,8 @@ export default function App() {
       setLoading(false)
     }
   }
+
+  const hasInput = files.length > 0 || urls.length > 0
 
   return (
     <div className="app">
@@ -151,12 +188,41 @@ export default function App() {
             <p className="hint">JPG, PNG, GIF, WebP — maximum {MAX_FILES} images</p>
           </div>
 
+          <div className="url-input-section">
+            <label className="url-input-label" htmlFor="url-input">
+              🔗 Ou entrez des URLs d'images (une par ligne)
+            </label>
+            <textarea
+              id="url-input"
+              className="url-textarea"
+              placeholder={'https://example.com/image.jpg\nhttps://example.com/photo.png'}
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              rows={3}
+            />
+            {urls.length > 0 && (
+              <div className="url-preview-list">
+                {urls.map((url, i) => (
+                  <div key={i} className="url-preview-item">
+                    <img
+                      src={url}
+                      alt={`URL ${i + 1}`}
+                      className="url-preview-img"
+                      onError={(e) => { e.currentTarget.classList.add('url-img-error') }}
+                    />
+                    <span className="url-preview-text">{url}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {error && <p className="error-msg">⚠️ {error}</p>}
 
           <button
             type="submit"
             className="analyze-btn"
-            disabled={files.length === 0 || loading}
+            disabled={!hasInput || loading}
           >
             {loading ? '⏳ Analyse en cours…' : '🔍 Analyser les images'}
           </button>
