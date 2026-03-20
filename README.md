@@ -68,7 +68,7 @@ Les résultats (top-5 prédictions, position GPS optionnelle) sont automatiqueme
 ## ✨ Fonctionnalités
 
 - 🔍 **Identification d'animaux** — MobileNetV2 + filtrage par mots-clés
-- 🗃️ **Sauvegarde automatique** des résultats dans SQLite (avec position GPS optionnelle)
+- 🗃️ **Sauvegarde automatique** des résultats dans SQLite (upsert : mise à jour si la source existe déjà, avec position GPS optionnelle)
 - 💻 **Interface CLI** pour une utilisation rapide en terminal
 - 🌐 **Application web** avec :
   - Frontend **React** (Vite) — glisser-déposer ou sélection de 1 à 10 images
@@ -278,12 +278,18 @@ cd backend && npm test
 make test
 ```
 
+### Vider la base de données
+
+```bash
+make db-clear
+```
+
 ### Organisation des tests
 
 | Emplacement | Module testé | Ce qui est couvert |
 |---|---|---|
 | `tests/test_animal_identifier.py` | `animal_identifier.py` | `is_animal`, `prepare_image` (19 tests) |
-| `tests/test_database.py` | `database.py` | `init_db`, `save_result`, `list_results` (21 tests) |
+| `tests/test_database.py` | `database.py` | `init_db`, `save_result` (upsert), `list_results` (30 tests) |
 | `backend/tests/ssrf.test.js` | `src/utils/ssrf.js` | Détection d'IP privées (8 tests) |
 | `backend/tests/routes.test.js` | `src/routes/analyze.js` | Routes Express, validation, erreurs (11 tests) |
 

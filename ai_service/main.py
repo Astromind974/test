@@ -27,7 +27,7 @@ from flask import Flask, jsonify, request
 from PIL import Image
 
 from animal_identifier import extract_gps_from_exif, is_animal, load_model, prepare_image
-from database import list_results, result_exists, save_result
+from database import list_results, save_result
 
 app = Flask(__name__)
 
@@ -122,9 +122,9 @@ def analyze():
     else:
         animal_in_top5 = None
 
-    # Sauvegarde uniquement si un animal est détecté avec certitude et que la source n'est pas dupliquée
+    # Sauvegarde uniquement si un animal est détecté avec certitude (upsert : mise à jour si source connue)
     row_id = None
-    if animal_detected and not result_exists(filename):
+    if animal_detected:
         row_id = save_result(
             source=filename,
             top5=top5,

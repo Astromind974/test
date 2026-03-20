@@ -9,7 +9,7 @@ défini par DB_PATH (par défaut : results.db).
 
 Fonctions publiques :
     init_db       – crée les tables si elles n'existent pas encore
-    save_result   – enregistre un résultat (animaux uniquement) si non dupliqué
+    save_result   – enregistre ou met à jour un résultat (upsert par source)
     result_exists – vérifie si une source est déjà enregistrée
     clear_db      – supprime tous les enregistrements
     list_results  – liste les derniers résultats
@@ -65,7 +65,10 @@ def save_result(
     db_path: str = DB_PATH,
 ) -> int:
     """
-    Enregistre un résultat d'identification dans la base de données.
+    Enregistre ou met à jour un résultat d'identification dans la base de données.
+
+    Si un enregistrement avec la même source existe déjà, ses informations sont
+    mises à jour (upsert). Sinon, un nouvel enregistrement est créé.
 
     Paramètres
     ----------
@@ -76,7 +79,7 @@ def save_result(
     longitude         : longitude GPS (optionnel, doit être fourni avec latitude)
     db_path           : chemin du fichier SQLite
 
-    Retourne l'identifiant (rowid) de la ligne insérée.
+    Retourne l'identifiant (rowid) de la ligne insérée ou mise à jour.
     """
     if (latitude is None) != (longitude is None):
         raise ValueError("latitude et longitude doivent être fournis ensemble ou pas du tout.")
@@ -94,28 +97,58 @@ def save_result(
 
     conn = get_connection(db_path)
     with conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO identifications (
-                timestamp, source, latitude, longitude,
-                top1_label, top1_score,
-                top2_label, top2_score,
-                top3_label, top3_score,
-                top4_label, top4_score,
-                top5_label, top5_score,
-                is_animal
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                datetime.now(timezone.utc).isoformat(),
-                source,
-                latitude,
-                longitude,
-                *values,
-                int(is_animal_detected),
-            ],
-        )
-        row_id = cursor.lastrowid
+        existing = conn.execute(
+            "SELECT id FROM identifications WHERE source = ? LIMIT 1", (source,)
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                """
+                UPDATE identifications SET
+                    timestamp   = ?,
+                    latitude    = ?,
+                    longitude   = ?,
+                    top1_label  = ?, top1_score  = ?,
+                    top2_label  = ?, top2_score  = ?,
+                    top3_label  = ?, top3_score  = ?,
+                    top4_label  = ?, top4_score  = ?,
+                    top5_label  = ?, top5_score  = ?,
+                    is_animal   = ?
+                WHERE source = ?
+                """,
+                [
+                    datetime.now(timezone.utc).isoformat(),
+                    latitude,
+                    longitude,
+                    *values,
+                    int(is_animal_detected),
+                    source,
+                ],
+            )
+            row_id = existing["id"]
+        else:
+            cursor = conn.execute(
+                """
+                INSERT INTO identifications (
+                    timestamp, source, latitude, longitude,
+                    top1_label, top1_score,
+                    top2_label, top2_score,
+                    top3_label, top3_score,
+                    top4_label, top4_score,
+                    top5_label, top5_score,
+                    is_animal
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    datetime.now(timezone.utc).isoformat(),
+                    source,
+                    latitude,
+                    longitude,
+                    *values,
+                    int(is_animal_detected),
+                ],
+            )
+            row_id = cursor.lastrowid
     conn.close()
     return row_id
 

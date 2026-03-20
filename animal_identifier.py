@@ -236,20 +236,21 @@ def identify_animal(
                 f"Meilleur résultat : {best_label} ({best_score * 100:.2f} %)."
             )
 
-    # 7. Sauvegarde dans la base de données (uniquement si animal détecté et non dupliqué)
+    # 7. Sauvegarde dans la base de données (uniquement si animal détecté)
     has_location = latitude is not None and longitude is not None
     if animal_detected:
-        if result_exists(image_source):
-            print(f"\n⏭️  Résultat déjà présent en base de données pour : {image_source}")
+        already_exists = result_exists(image_source)
+        row_id = save_result(
+            source=image_source,
+            top5=top5,
+            is_animal_detected=True,
+            latitude=latitude if has_location else None,
+            longitude=longitude if has_location else None,
+        )
+        loc_info = f" | position : lat={latitude}, lon={longitude}" if has_location else ""
+        if already_exists:
+            print(f"\n🔄  Résultat mis à jour en base de données (id={row_id}{loc_info}).")
         else:
-            row_id = save_result(
-                source=image_source,
-                top5=top5,
-                is_animal_detected=True,
-                latitude=latitude if has_location else None,
-                longitude=longitude if has_location else None,
-            )
-            loc_info = f" | position : lat={latitude}, lon={longitude}" if has_location else ""
             print(f"\n💾  Résultat sauvegardé en base de données (id={row_id}{loc_info}).")
     else:
         print("\n⚠️  Aucun animal détecté avec certitude — résultat non sauvegardé.")

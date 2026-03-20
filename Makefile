@@ -4,7 +4,7 @@
 .PHONY: install install-dev install-backend install-frontend \
         run-cli run-ai-service run-backend run-frontend \
         test test-python test-backend \
-        build-frontend clean help
+        build-frontend db-clear clean help
 
 # ---------------------------------------------------------------------------
 # Installation
@@ -71,6 +71,14 @@ build-frontend: install-frontend
 	cd frontend && npm run build
 
 # ---------------------------------------------------------------------------
+# Base de données
+# ---------------------------------------------------------------------------
+
+## Vide la base de données (supprime tous les enregistrements)
+db-clear:
+	python -c "from database import clear_db; clear_db(); print('✅  Base de données vidée.')"
+
+# ---------------------------------------------------------------------------
 # Nettoyage
 # ---------------------------------------------------------------------------
 
@@ -102,5 +110,6 @@ help:
 	@echo "  test-python       Lancer uniquement les tests Python"
 	@echo "  test-backend      Lancer uniquement les tests Node.js"
 	@echo "  build-frontend    Compiler le frontend React pour la production"
+	@echo "  db-clear          Vider la base de données (supprimer tous les enregistrements)"
 	@echo "  clean             Supprimer les fichiers de build et caches"
 	@echo "  help              Afficher cette aide"
