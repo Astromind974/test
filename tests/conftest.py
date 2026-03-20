@@ -8,12 +8,10 @@ le téléchargement (~14 Mo) et le chargement lors des tests.
 """
 
 import io
-import sys
 
 import numpy as np
 import pytest
 from PIL import Image
-from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Prédictions factices retournées par le modèle mocké
@@ -28,43 +26,6 @@ MOCK_TOP5 = [
         ("n02112018", "Pomeranian", 0.02),
     ]
 ]
-
-# ---------------------------------------------------------------------------
-# Mock du modèle MobileNetV2 — doit être mis en place AVANT l'import de app
-# ---------------------------------------------------------------------------
-
-_mock_model = MagicMock()
-_mock_model.predict.return_value = np.zeros((1, 1000))
-
-_mock_decode = MagicMock(return_value=MOCK_TOP5)
-
-
-def _mock_preprocess(x):
-    return np.array(x, dtype=np.float32)
-
-with patch(
-    "animal_identifier.load_model",
-    return_value=(_mock_model, _mock_preprocess, _mock_decode),
-):
-    import app as _app_module  # noqa: E402  (import intentionnellement différé)
-
-
-# ---------------------------------------------------------------------------
-# Fixtures Flask
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def flask_app():
-    """Instance Flask configurée pour les tests."""
-    _app_module.app.config["TESTING"] = True
-    return _app_module.app
-
-
-@pytest.fixture
-def client(flask_app):
-    """Client HTTP de test Flask."""
-    return flask_app.test_client()
 
 
 # ---------------------------------------------------------------------------
