@@ -167,6 +167,35 @@ class TestSaveResult:
                 longitude=2.3522, db_path=db_path,
             )
 
+    def test_upsert_returns_same_id(self, db_path):
+        """save_result doit retourner le même id lors d'une mise à jour."""
+        id1 = save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        id2 = save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        assert id1 == id2
+
+    def test_upsert_updates_top1_label(self, db_path):
+        """save_result doit mettre à jour le top1_label lors d'une mise à jour."""
+        original = [("n001", "tabby", 0.62)] + _make_top5()[1:]
+        updated = [("n001", "lion", 0.90)] + _make_top5()[1:]
+        save_result("photo.jpg", original, True, db_path=db_path)
+        save_result("photo.jpg", updated, True, db_path=db_path)
+        results = list_results(db_path=db_path)
+        assert len(results) == 1
+        assert results[0]["top1_label"] == "lion"
+        assert results[0]["top1_score"] == pytest.approx(0.90)
+
+    def test_upsert_updates_gps_coordinates(self, db_path):
+        """save_result doit mettre à jour les coordonnées GPS lors d'une mise à jour."""
+        save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        save_result(
+            "photo.jpg", _make_top5(), True,
+            latitude=48.8566, longitude=2.3522, db_path=db_path,
+        )
+        results = list_results(db_path=db_path)
+        assert len(results) == 1
+        assert results[0]["latitude"] == pytest.approx(48.8566)
+        assert results[0]["longitude"] == pytest.approx(2.3522)
+
 
 # ---------------------------------------------------------------------------
 # Tests : list_results
@@ -227,14 +256,12 @@ class TestResultExists:
         save_result("photo.jpg", _make_top5(), True, db_path=db_path)
         assert result_exists("other.jpg", db_path=db_path) is False
 
-    def test_duplicate_not_inserted(self, db_path):
-        """Un deuxième enregistrement avec la même source ne doit pas être ajouté si on vérifie avant."""
+    def test_duplicate_updates_record(self, db_path):
+        """Un deuxième save_result avec la même source doit mettre à jour, non dupliquer."""
         save_result("photo.jpg", _make_top5(), True, db_path=db_path)
-        exists = result_exists("photo.jpg", db_path=db_path)
-        if not exists:
-            save_result("photo.jpg", _make_top5(), True, db_path=db_path)
+        save_result("photo.jpg", _make_top5(), True, db_path=db_path)
         results = list_results(db_path=db_path)
-        assert len(results) == 1  # seul le premier enregistrement
+        assert len(results) == 1  # mis à jour, pas dupliqué
 
 
 # ---------------------------------------------------------------------------
