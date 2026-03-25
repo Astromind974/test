@@ -116,10 +116,10 @@ jobs:
           echo "Auteur  : ${{ github.actor }}"
 
   # ---------------------------------------------------------------------------
-  # Synchronisation vers le dépôt cible (uniquement sur push, si tout est OK)
+  # Synchronisation vers WildTrack-Studio/Prototype (uniquement sur push, si tout est OK)
   # ---------------------------------------------------------------------------
   sync-to-target-repo:
-    name: 🚀 Sync vers le dépôt cible
+    name: 🚀 Sync vers WildTrack-Studio/Prototype
     needs: [test-python, test-backend, build-frontend, check-files]
     runs-on: ubuntu-latest
     # Ne s'exécute que sur les push (pas sur les pull_request)
@@ -131,12 +131,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🚀 Push vers le dépôt cible
+      - name: 🚀 Push vers WildTrack-Studio/Prototype
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add target https://x-access-token:${TARGET_REPO_TOKEN}@github.com/${TARGET_REPO}.git
+          git remote add target https://x-access-token:${TARGET_REPO_TOKEN}@github.com/WildTrack-Studio/Prototype.git
           git push target HEAD:${{ github.ref_name }} --force-with-lease
         env:
           TARGET_REPO_TOKEN: ${{ secrets.TARGET_REPO_TOKEN }}
-          TARGET_REPO: ${{ secrets.TARGET_REPO }}
