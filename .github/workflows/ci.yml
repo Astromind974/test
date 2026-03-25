@@ -136,6 +136,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add target https://x-access-token:${TARGET_REPO_TOKEN}@github.com/WildTrack-Studio/Prototype.git
-          git push target HEAD:${{ github.ref_name }} --force-with-lease
+          BRANCH="${{ github.ref_name }}"
+          if git ls-remote --exit-code target "refs/heads/${BRANCH}" > /dev/null 2>&1; then
+            echo "✅ La branche '${BRANCH}' existe déjà dans le dépôt miroir, mise à jour avec --force-with-lease."
+            git push target HEAD:refs/heads/${BRANCH} --force-with-lease
+          else
+            echo "🌿 La branche '${BRANCH}' n'existe pas dans le dépôt miroir, création automatique."
+            git push target HEAD:refs/heads/${BRANCH}
+          fi
         env:
           TARGET_REPO_TOKEN: ${{ secrets.TARGET_REPO_TOKEN }}
