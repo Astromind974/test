@@ -23,6 +23,7 @@
 - [API REST](#-api-rest)
 - [Tests](#-tests)
 - [Structure du projet](#-structure-du-projet)
+- [CI/CD & Synchronisation](#-cicd--synchronisation)
 - [Contribuer](#-contribuer)
 - [Licence](#-licence)
 - [Contact](#-contact)
@@ -342,6 +343,29 @@ test/
 ├── LICENSE
 └── README.md
 ```
+
+---
+
+## ⚙️ CI/CD & Synchronisation
+
+Le pipeline CI/CD (`.github/workflows/ci.yml`) enchaîne automatiquement :
+
+1. **Tests Python** — `pytest` sur `animal_identifier.py` et `database.py`
+2. **Tests Node.js** — `Jest` sur le backend Express
+3. **Build frontend** — `Vite` en mode production
+4. **Vérification des fichiers essentiels**
+5. **Synchronisation** — push automatique vers [`WildTrack-Studio/Prototype`](https://github.com/WildTrack-Studio/Prototype) (dépôt privé) après chaque push réussi
+
+### Configuration requise
+
+Ajoutez le secret suivant dans les paramètres GitHub du dépôt  
+(**Settings → Secrets and variables → Actions → New repository secret**) :
+
+| Secret              | Description                                                                          |
+|---------------------|--------------------------------------------------------------------------------------|
+| `TARGET_REPO_TOKEN` | Personal Access Token (PAT) ou token d'application avec accès en écriture sur `WildTrack-Studio/Prototype` |
+
+> **Note :** Le dépôt cible `WildTrack-Studio/Prototype` étant privé, le token doit disposer du scope `repo` (ou `contents: write` pour un fine-grained PAT).
 
 ---
 
