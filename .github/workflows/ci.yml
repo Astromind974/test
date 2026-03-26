@@ -136,10 +136,19 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: 🔧 Exclusion du dossier .github du miroir
+        run: |
+          if git ls-files --error-unmatch .github > /dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git rm -r --cached .github
+            git commit -m "chore: exclude .github from mirror sync"
+          else
+            echo "ℹ️ .github non présent dans l'index, aucune action nécessaire."
+          fi
+
       - name: 🚀 Push vers WildTrack-Studio/Prototype
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           ssh-keyscan github.com >> ~/.ssh/known_hosts
           git remote add target git@github.com:WildTrack-Studio/Prototype.git
           BRANCH="${{ github.ref_name }}"
