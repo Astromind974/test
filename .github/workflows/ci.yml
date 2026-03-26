@@ -152,10 +152,6 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
           git remote add target git@github.com:WildTrack-Studio/Prototype.git
           BRANCH="${{ github.ref_name }}"
-          if git ls-remote --exit-code target "refs/heads/${BRANCH}" > /dev/null 2>&1; then
-            echo "✅ La branche '${BRANCH}' existe déjà dans le dépôt miroir, mise à jour avec --force-with-lease."
-            git push target HEAD:refs/heads/${BRANCH} --force-with-lease
-          else
-            echo "🌿 La branche '${BRANCH}' n'existe pas dans le dépôt miroir, création automatique."
-            git push target HEAD:refs/heads/${BRANCH}
-          fi
+          git fetch target ${BRANCH}
+          git reset --hard target/${BRANCH} || true
+          git push target HEAD:refs/heads/${BRANCH} --force-with-lease
