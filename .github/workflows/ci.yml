@@ -131,11 +131,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 🔑 Configuration de la clé SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+
       - name: 🚀 Push vers WildTrack-Studio/Prototype
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add target https://x-access-token:${TARGET_REPO_TOKEN}@github.com/WildTrack-Studio/Prototype.git
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git remote add target git@github.com:WildTrack-Studio/Prototype.git
           BRANCH="${{ github.ref_name }}"
           if git ls-remote --exit-code target "refs/heads/${BRANCH}" > /dev/null 2>&1; then
             echo "✅ La branche '${BRANCH}' existe déjà dans le dépôt miroir, mise à jour avec --force-with-lease."
@@ -144,5 +150,3 @@ jobs:
             echo "🌿 La branche '${BRANCH}' n'existe pas dans le dépôt miroir, création automatique."
             git push target HEAD:refs/heads/${BRANCH}
           fi
-        env:
-          TARGET_REPO_TOKEN: ${{ secrets.TARGET_REPO_TOKEN }}
